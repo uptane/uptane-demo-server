@@ -1,0 +1,6 @@
+uptanedemo:
+  hosts:
+    serverurl.com:
+  vars:
+    server_id: "your_hetzner_servernum"
+    ansible_ssh_user: root

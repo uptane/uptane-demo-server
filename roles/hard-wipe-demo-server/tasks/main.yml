@@ -1,0 +1,41 @@
+---
+- name: Set server to install linux on next reboot
+  uri:
+    url: https://robot-ws.your-server.de/boot/{{ server_id }}/linux
+    method: POST
+    user: "{{ hetzner_webservice_username }}"
+    password: "{{ hetzner_webservice_password }}"
+    force_basic_auth: yes
+    body_format: form-urlencoded
+    body: 
+      - ["dist", "Ubuntu 22.04 LTS base"]
+      - ["lang", "en"]
+      - ["authorized_key[]", "27:3c:1a:92:ad:42:2e:05:3d:c7:7e:4b:2a:2c:26:c1"]
+      - ["authorized_key[]", "f8:c2:4e:ef:9c:8a:b0:0c:c8:e1:db:d5:70:71:db:fd"]
+    status_code: 200
+  vars:
+    ansible_connection: local
+  register: activated
+
+- name: Execute hardware reset
+  uri:
+    url: https://robot-ws.your-server.de/reset/{{ server_id }}
+    method: POST
+    user: "{{ hetzner_webservice_username }}"
+    password: "{{ hetzner_webservice_password }}"
+    force_basic_auth: yes
+    body_format: form-urlencoded
+    body: 
+      type: hw
+    status_code: 200
+  vars:
+    ansible_connection: local
+  register: reset
+
+- name: Wait up to 10 minutes for server to come back (with 15 second delay)
+  ansible.builtin.wait_for_connection:
+    delay: 15
+    timeout: 600
+  register: wait_time
+
+- debug: var=wait_time.elapsed

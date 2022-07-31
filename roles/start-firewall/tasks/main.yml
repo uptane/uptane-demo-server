@@ -1,0 +1,18 @@
+- name: reset firewall to factory defaults
+  community.general.ufw:
+    state: reset
+
+- name: set firewall rules to only allow 22/80/443
+  community.general.ufw:
+    rule: allow
+    proto: tcp
+    port: '{{ item }}'
+  loop:
+    - 22
+    - 80
+    - 443
+
+- name: enable firewall
+  community.general.ufw:
+    state: enabled
+    default: deny

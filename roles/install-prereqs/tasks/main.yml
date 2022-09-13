@@ -1,0 +1,53 @@
+#############################
+#####install-prereqs#########
+#############################
+
+- name: Ensure that aptitude is installed
+  apt:
+    name: aptitude
+    state: latest
+    update_cache: true
+
+- name: Ensure docker GPG apt Key is added
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Ensure that the docker repo is added
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu focal stable
+    state: present
+
+- name: Ensure all the  required system packages are installed
+  apt:
+    pkg:
+      - git
+      - jq
+      - zip
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - python3-pip
+      - virtualenv
+      - python3-setuptools
+    state: latest
+    update_cache: true
+
+- name: Secure the installation of  docker-ce
+  apt:
+    name: docker-ce
+    state: latest
+    update_cache: true
+
+- name: Guarantee that docker-compose-plugin is present
+  apt:
+   name: docker-compose-plugin
+   state: present
+   update_cache: yes
+
+- name: Ensure  docker / docker-compse python modules
+  pip:
+    name:
+        - docker
+        - docker-compose

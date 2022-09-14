@@ -1,0 +1,18 @@
+#############################
+########demo-uptane##########
+#############################
+- name: demo-uptane
+  hosts: uptanedemo
+  gather_facts: yes
+  become: no
+
+  tasks:
+    - name: install prerqeuisites
+      import_role:
+        name: install-prereqs
+    - name: Configure server
+      import_role:
+        name: configure-demo-server
+    - name: Start server
+      import_role:
+        name: start-server

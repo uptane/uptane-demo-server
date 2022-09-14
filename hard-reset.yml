@@ -1,0 +1,24 @@
+#############################
+#########hard-reset##########
+#############################
+- name: hard-reset
+  hosts: uptanedemo
+gather_facts: yes
+  become: no
+
+  tasks:
+    - name: Hard wipe demo server
+      import_role:
+        name: hard-wipe-demo-server
+    - name: Start firewall
+      import_role:
+        name: start-firewall
+    - name: Install prerqeuisites
+      import_role:
+        name: install-prereqs
+    - name: Configure server
+      import_role:
+        name: configure-demo-server
+    - name: Start server
+      import_role:
+       name: start-server

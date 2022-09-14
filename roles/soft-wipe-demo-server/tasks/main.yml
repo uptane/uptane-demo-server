@@ -1,0 +1,16 @@
+#############################
+####soft-wipe-demo-server####
+#############################
+
+- name: Tear down existing services
+  community.docker.docker_compose:
+    project_src: /etc/uptane/
+    files: ota-ce.yaml
+    remove_volumes: yes
+    state: absent
+  register: output
+
+- name: Make sure all key material and user data is deleted
+  file:
+    state: absent
+    path: /etc/uptane/ota-ce-gen

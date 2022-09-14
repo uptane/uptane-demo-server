@@ -1,0 +1,41 @@
+#############################
+########start-server#########
+#############################
+- name: Make sure the directory ota-ce-gen is deleted
+  file:
+    state: absent
+    path: /etc/uptane/ota-ce-gen
+
+- name: Ensure that the certification for the gateway(nginx server) is generated
+  ansible.builtin.shell: ./scripts/gen-server-certs.sh dgw.uptanedemo.org
+  args:
+    chdir: /etc/uptane
+
+- name: Ensure ca.key is readable to others
+  ansible.builtin.file:
+    path: /etc/uptane/ota-ce-gen/devices/ca.key
+    mode: u=rw,g=r,o=r
+
+- name: Create and start services
+  community.docker.docker_compose:
+    project_src: /etc/uptane
+    files: ota-ce.yaml
+  register: output
+
+- name: Ensure get-credentials.sh is executable
+  ansible.builtin.file:
+    path: /etc/uptane/scripts/get-credentials.sh
+    mode: u=rwx,g=rx,o=rx
+
+- name: Creates credentials.zip
+  ansible.builtin.shell: ./scripts/get-credentials.sh https uptanedemo.org
+  args:
+    chdir: /etc/uptane
+  register: output
+  until: output.rc == 0
+  retries: 10
+  delay: 1
+  ignore_errors: yes
+
+- ansible.builtin.debug:
+    var: output

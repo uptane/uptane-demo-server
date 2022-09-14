@@ -1,0 +1,282 @@
+#############################
+####configure-demo-server####
+#############################
+- name: Ensure uptane resides in /etc
+  file:
+    path: /etc/uptane
+    state: directory
+
+- name: Guarantee dxxepxxth's OTA-CE repo is cloned
+  git:
+   repo: https://github.com/d80ep08th/ota-community-edition.git
+   dest: /etc/uptane
+   clone: yes
+   update: yes
+
+- name: Make sure the repo is on the branch gsoc-ansible
+  ansible.builtin.shell: git checkout -B feat-gsoc22 origin/feat-gsoc22
+  args:
+    chdir: /etc/uptane
+
+- name: Pull Uptane ota-lith
+  community.docker.docker_image:
+    name: uptane/ota-lith
+    source: pull
+
+- name: Remove REVERSE PROXY COMMAND
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} REVERSE PROXY COMMAND"
+    block: ""
+
+- name: Add REVERSE PROXY CERTIFICATES
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} REVERSE PROXY CERTIFICATES"
+    block: |4
+            command:
+              #- "--log.level=DEBUG"
+              - "--api.insecure=true"
+              - "--providers.docker=true"
+              - "--providers.docker.exposedbydefault=false"
+              - "--entrypoints.web.address=:80"
+              - "--entrypoints.websecure.address=:443"
+              - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+              - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+              #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+              #- "--certificatesresolvers.myresolver.acme.email=postmaster@example.com"
+              - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+
+- name: Add REVERSE PROXY PORT 443
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} REVERSE PROXY PORT"
+    block: |6
+                - "443:443"
+
+- name: Add REVERSE PROXY VOLUME letsencrypt
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} REVERSE PROXY VOLUME"
+    block: |6
+                - "./letsencrypt:/letsencrypt"
+
+
+- name: Add LANDING PAGE CONTAINER
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} LANDING PAGE CONTAINER"
+    block: |2
+        landing-page:
+          # to host the landing page for uptanedemo.org
+          image: nginx
+          restart: always
+          command: ["nginx-debug", "-g", "daemon off;"]
+          expose:
+            - '80'
+            - '443'
+            - '7443'
+          ports:
+            - '80'
+            - '7443'
+            - '20443:7443'
+          depends_on:
+            - reverse-proxy
+            - ota-lith
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.landing-page.rule=Host(`uptanedemo.org`)"
+            - "traefik.http.routers.landing-page.entrypoints=websecure"
+            - "traefik.http.routers.landing-page.tls.certresolver=myresolver"
+          volumes:
+            - ./ota-ce/landing-page.conf:/etc/nginx/conf.d/landing-page.conf:ro
+            - ./ota-ce-gen/server.chain.pem:/etc/ssl/gateway/server.chain.pem:ro
+            - ./ota-ce-gen/server.key:/etc/ssl/gateway/server.key:ro
+            - ./ota-ce-gen/devices/ca.crt:/etc/ssl/gateway/ca.crt:ro
+            - ./ota-ce-gen/devices/ca.crt:/usr/share/nginx/html/ca.crt
+            - ./ota-ce-gen/devices/ca.key:/usr/share/nginx/html/ca.key
+            - ./ota-ce-gen/server_ca.pem:/usr/share/nginx/html/server_ca.pem
+            - ./scripts/certs/client.ext:/usr/share/nginx/html/client.ext
+            - ./scripts/certs/client.cnf:/usr/share/nginx/html/client.cnf
+            - ./scripts/gen-device.sh:/usr/share/nginx/html/gen-device.sh
+            - ./scripts/get-credentials.sh:/usr/share/nginx/html/get-credentials.sh
+            - ./ota-ce/index.html:/usr/share/nginx/html/index.html
+            - ./ota-ce/js:/usr/share/nginx/html/js
+            - ./ota-ce/css:/usr/share/nginx/html/css
+            - ./ota-ce/fonts:/usr/share/nginx/html/fonts
+
+- name: Remove OTA LITH LABELS
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} OTA LITH LABELS"
+    block: ""
+
+- name: Add NEW OTA LITH LABELS
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce.yaml
+    marker: "#{mark} NEW OTA LITH LABELS"
+    block: |4
+            labels:
+              - traefik.enable=true
+              - traefik.http.routers.reposerver.service=reposerver
+              - traefik.http.routers.reposerver.rule=Host(`reposerver.uptanedemo.org`)
+              - traefik.http.routers.reposerver.entrypoints=websecure
+              - traefik.http.routers.reposerver.tls.certresolver=myresolver
+              - traefik.http.services.reposerver.loadbalancer.server.port=7100
+              - traefik.http.routers.keyserver.service=keyserver
+              - traefik.http.routers.keyserver.rule=Host(`keyserver.uptanedemo.org`)
+              - traefik.http.routers.keyserver.entrypoints=websecure
+              - traefik.http.routers.keyserver.tls.certresolver=myresolver
+              - traefik.http.services.keyserver.loadbalancer.server.port=7200
+              - traefik.http.routers.director.service=director
+              - traefik.http.routers.director.rule=Host(`director.uptanedemo.org`)
+              - traefik.http.routers.director.entrypoints=websecure
+              - traefik.http.routers.director.tls.certresolver=myresolver
+              - traefik.http.services.director.loadbalancer.server.port=7300
+              - traefik.http.routers.treehub.service=treehub
+              - traefik.http.routers.treehub.rule=Host(`treehub.uptanedemo.org`)
+              - traefik.http.routers.treehub.entrypoints=websecure
+              - traefik.http.routers.treehub.tls.certresolver=myresolver
+              - traefik.http.services.treehub.loadbalancer.server.port=7400
+              - traefik.http.routers.deviceregistry.service=deviceregistry
+              - traefik.http.routers.deviceregistry.rule=Host(`deviceregistry.uptanedemo.org`)
+              - traefik.http.routers.deviceregistry.entrypoints=websecure
+              - traefik.http.routers.deviceregistry.tls.certresolver=myresolver
+              - traefik.http.services.deviceregistry.loadbalancer.server.port=7500
+              - traefik.http.routers.campaigner.service=campaigner
+              - traefik.http.routers.campaigner.rule=Host(`campaigner.uptanedemo.org`)
+              - traefik.http.routers.campaigner.entrypoints=websecure
+              - traefik.http.routers.campaigner.tls.certresolver=myresolver
+              - traefik.http.services.campaigner.loadbalancer.server.port=7600
+
+
+- name: Remove ota.ce directory configuration from gen-device.sh
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/scripts/gen-device.sh
+    marker: "#{mark} CE DIR CONF"
+    block: ""
+
+- name: Add uptanedemo.org directory configuration to gen-device.sh
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/scripts/gen-device.sh
+    marker: "#{mark} UPTANE DEMO DIR CONF"
+    block: |
+      mkdir -p "${CWD}/certs"
+      mkdir -p "${CWD}/ota-ce-gen"
+      CERTS_DIR=$CWD/certs
+      SERVER_DIR=$CWD/ota-ce-gen
+
+      mkdir -p "${SERVER_DIR}/devices"
+      DEVICES_DIR=${SERVER_DIR}/devices
+
+      wget -O ${CERTS_DIR}/client.cnf https://uptanedemo.org/client.cnf
+      wget -O ${CERTS_DIR}/client.ext https://uptanedemo.org/client.ext
+      wget -O ${SERVER_DIR}/server_ca.pem https://uptanedemo.org/server_ca.pem
+      wget -O ${DEVICES_DIR}/ca.crt https://uptanedemo.org/ca.crt
+      wget -O ${DEVICES_DIR}/ca.key https://uptanedemo.org/ca.key
+
+- name: Remove ota.ce api call to add device from gen-device.sh
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/scripts/gen-device.sh
+    marker: "#{mark} CE API CONF"
+    block: ""
+
+- name: Add uptanedemo.org api call to add device to gen-device.sh
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/scripts/gen-device.sh
+    marker: "#{mark} UPTANE DEMO API CONF"
+    block: |
+        curl -X PUT -d "${body}" https://deviceregistry.uptanedemo.org/api/v1/devices -s -S -v -H "Content-Type: application/json" -H "Accept: application/json, */*"
+        echo "https://dgw.uptanedemo.org:30443" > ${device_dir}/gateway.url
+
+- name: Remove ota.ce server_name from gateway.conf
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/ota-ce/gateway.conf
+    marker: "#{mark} OTA CE NGINX CONF"
+    block: ""
+
+
+- name: Add  dgw.uptanedemo.org server_name to gateway.conf
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce/gateway.conf
+    marker: "#{mark} DGW NGINX CONF"
+    block: |1
+      server_name dgw.uptanedemo.org;
+
+- name: Remove ota.ce director config from gateway.conf
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/ota-ce/gateway.conf
+    marker: "#{mark} OTA CE DIRECTOR"
+    block: ""
+
+
+- name: Add uptanedemo.org director config to gateway.conf
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/ota-ce/gateway.conf
+    marker: "#{mark} DIRECTOR NGINX CONF"
+    block: |2
+        location /director/ {
+            rewrite ^/director/(.*)$ /api/v1/device/${deviceUuid}/$1 break;
+            proxy_set_header x-ats-namespace $deviceNamespace;
+            proxy_set_header Host director.uptanedemo.org;
+            proxy_pass http://ota-lith:7300;
+        }
+
+
+- name: Remove ota.ce http in get-credentials.sh
+  ansible.builtin.blockinfile:
+    state: absent
+    path: /etc/uptane/scripts/get-credentials.sh
+    marker: "#{mark} HTTP"
+    block: ""
+
+
+- name: Add uptanedemo.org https in get-credentials.sh
+  ansible.builtin.blockinfile:
+    state: present
+    path: /etc/uptane/scripts/get-credentials.sh
+    marker: "#{mark} HTTPS"
+    block: |
+          echo "https://reposerver.${SERVER_BASE_URI}" > "${SERVER_DIR}/tufrepo.url"
+          echo "https://${SERVER_BASE_URI}:30443" > "${SERVER_DIR}/autoprov.url"
+
+          cat > "${SERVER_DIR}/treehub.json" <<END
+          {
+              "no_auth": true,
+              "ostree": {
+                  "server": "https://treehub.${SERVER_BASE_URI}/api/v3/"
+              }
+          }
+          END
+
+
+
+- name: copy landing page nginx config
+  copy:
+    src: landing-page.conf
+    dest: /etc/uptane/ota-ce/landing-page.conf
+
+- name: copy landing page nginx config
+  copy:
+      src: index.html
+      dest: /etc/uptane/ota-ce/index.html
+
+- name: Extract landing page framework into ota-ce directory
+  ansible.builtin.unarchive:
+    src: landing_page_framework.zip
+    dest: /etc/uptane/ota-ce

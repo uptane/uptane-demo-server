@@ -1,0 +1,15 @@
+#############################
+########soft-reset#########
+#############################
+- name: soft-reset
+  hosts: uptanedemo
+  gather_facts: yes
+  become: no
+
+  tasks:
+    - name: Stop services, then delete all key material and user data
+      import_role:
+        name: soft-wipe-demo-server
+    - name: Generate Uptane key material and certificate authority for device cert and Start OTA-CE
+      import_role:
+        name: start-server

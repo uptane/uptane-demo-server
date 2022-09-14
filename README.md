@@ -9,32 +9,31 @@ This demo server is publicly accessible, and can be used by anyone by configurin
 ## Ansible roles
 
 - `hard-wipe-demo-server`: Wipe and reboot server into a fresh linux install. Take approximately 8-10 minutes to complete
-- `configure-security`: Configure UFW and SSH to standard, semi-hardened configurations
+- `start-firewall`: Configure UFW and SSH to standard, semi-hardened configurations
 - `install-prereqs`: Install the necessary packages for running the demo server
 - `configure-demo-server`: Clone OTA Community Edition and modify base config files as necessary for demo server
-- `generate-keys`: Generate Uptane key material and certificate authority for device certs
 - `start-server`: Start OTA Community Edition (docker-compose) and reverse proxy (TBD)
 - `soft-wipe-demo-server`: Stop services, then delete all key material and user data
 
 ## Playbooks
-
 * `setup-server` contains:
   * `hard-wipe-demo-server`
-  * `configure-security`
+  * `start-firewall`
   * `install-prereqs`
   * `configure-demo-server`
 * `soft-reset` contains:
   * `soft-wipe-demo-server`
-  * `generate-keys`
   * `start-server`
 * `hard-reset` contains:
   * `hard-wipe-demo-server`
-  * `configure-security`
+  * `start-firewall`
   * `install-prereqs`
   * `configure-demo-server`
-  * `generate-keys`
   * `start-server`
-  * `soft-wipe-demo-server`
+* `demo-uptane` contains:
+  * `install-prereqs`
+  * `configure-demo-server`
+  * `start-server`
 
 ## CI Automation
 
